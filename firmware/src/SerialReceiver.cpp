@@ -21,7 +21,7 @@ bool SerialReceiver::readLine(String& outLine) {
     }
 
     buffer += ch;
-    if (buffer.length() > MAX_LINE_LENGTH) {
+    if (buffer.length() > FirmwareConfig::METRICS_LINE_MAX_LENGTH) {
       clear();
       return false;
     }

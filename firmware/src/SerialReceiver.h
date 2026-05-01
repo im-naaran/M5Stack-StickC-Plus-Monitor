@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "FirmwareConfig.h"
 
 class SerialReceiver {
 public:
@@ -10,5 +11,4 @@ public:
 
 private:
   String buffer;
-  static const size_t MAX_LINE_LENGTH = 64;
 };

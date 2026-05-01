@@ -12,10 +12,12 @@ const uint16_t COLOR_DIM = 0x4208;
 const uint16_t COLOR_GREEN = 0x07E0;
 const uint16_t COLOR_YELLOW = 0xFFE0;
 const uint16_t COLOR_RED = 0xF800;
+const uint8_t ROTATION_LANDSCAPE = 1;
+const uint8_t ROTATION_LANDSCAPE_INVERTED = 3;
 }
 
 void DisplayView::begin() {
-  M5.Lcd.setRotation(1);
+  applyRotation();
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
   M5.Lcd.fillScreen(COLOR_BACKGROUND);
@@ -30,7 +32,7 @@ void DisplayView::drawBoot() {
   M5.Lcd.drawString("Waiting for PC", 120, 58);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
-  M5.Lcd.drawString(String("USB Serial ") + FirmwareConfig::SERIAL_BAUD_RATE, 120, 82);
+  M5.Lcd.drawString("USB Serial / BLE RX", 120, 82);
   M5.Lcd.setTextDatum(TL_DATUM);
   hasLastDrawnState = false;
 }
@@ -58,6 +60,10 @@ void DisplayView::draw(const AppState& state) {
 
 void DisplayView::drawDisconnected(const AppState& state) {
   if (hasLastDrawnState && !lastDrawnState.connected &&
+      lastDrawnState.timeText == state.timeText &&
+      lastDrawnState.bleClientConnected == state.bleClientConnected &&
+      lastDrawnState.bleWriteCount == state.bleWriteCount &&
+      lastDrawnState.bleLineCount == state.bleLineCount &&
       lastDrawnState.brightnessIndex == state.brightnessIndex) {
     return;
   }
@@ -69,8 +75,16 @@ void DisplayView::drawDisconnected(const AppState& state) {
   M5.Lcd.setTextColor(COLOR_RED, COLOR_BACKGROUND);
   M5.Lcd.drawString("Disconnected", 120, 48);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
-  M5.Lcd.drawString("Waiting for valid serial data", 120, 76);
+  if (state.bleClientConnected) {
+    M5.Lcd.setTextColor(COLOR_GREEN, COLOR_BACKGROUND);
+    M5.Lcd.drawString(
+      String("BLE linked W:") + state.bleWriteCount + " L:" + state.bleLineCount,
+      120,
+      76);
+  } else {
+    M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
+    M5.Lcd.drawString("Waiting for valid PC data", 120, 76);
+  }
   M5.Lcd.setTextDatum(TL_DATUM);
   drawFooter(state);
 
@@ -85,6 +99,22 @@ void DisplayView::setBrightnessByIndex(uint8_t index) {
   }
 
   M5.Axp.ScreenBreath(FirmwareConfig::BRIGHTNESS_LEVELS[safeIndex]);
+}
+
+void DisplayView::setInverted(bool inverted) {
+  if (screenInverted == inverted) {
+    return;
+  }
+
+  screenInverted = inverted;
+  applyRotation();
+  M5.Lcd.fillScreen(COLOR_BACKGROUND);
+  hasLastDrawnState = false;
+}
+
+void DisplayView::applyRotation() {
+  M5.Lcd.setRotation(screenInverted ? ROTATION_LANDSCAPE_INVERTED : ROTATION_LANDSCAPE);
+  M5.Lcd.setTextDatum(TL_DATUM);
 }
 
 void DisplayView::drawLayout() {
@@ -123,10 +153,10 @@ void DisplayView::drawFooter(const AppState& state) {
 
   if (state.connected) {
     M5.Lcd.setTextColor(COLOR_GREEN, COLOR_BACKGROUND);
-    M5.Lcd.drawString("USB Connected", 12, 116);
+    M5.Lcd.drawString("PC Connected", 12, 116);
   } else {
     M5.Lcd.setTextColor(COLOR_RED, COLOR_BACKGROUND);
-    M5.Lcd.drawString("USB Disconnected", 12, 116);
+    M5.Lcd.drawString("PC Disconnected", 12, 116);
   }
 
   M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
@@ -155,6 +185,8 @@ bool DisplayView::stateChanged(const AppState& state) const {
          lastDrawnState.metrics.cpuPercent != state.metrics.cpuPercent ||
          lastDrawnState.metrics.memoryPercent != state.metrics.memoryPercent ||
          lastDrawnState.timeText != state.timeText ||
-         lastDrawnState.brightnessIndex != state.brightnessIndex ||
-         lastDrawnState.screenOn != state.screenOn;
+         lastDrawnState.bleClientConnected != state.bleClientConnected ||
+         lastDrawnState.bleWriteCount != state.bleWriteCount ||
+         lastDrawnState.bleLineCount != state.bleLineCount ||
+         lastDrawnState.brightnessIndex != state.brightnessIndex;
 }

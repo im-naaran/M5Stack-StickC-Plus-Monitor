@@ -10,8 +10,10 @@ public:
   void draw(const AppState& state);
   void drawDisconnected(const AppState& state);
   void setBrightnessByIndex(uint8_t index);
+  void setInverted(bool inverted);
 
 private:
+  void applyRotation();
   void drawLayout();
   void drawMetricBlock(int x, int y, const char* label, int percent);
   void drawProgressBar(int x, int y, int w, int h, int percent, uint16_t color);
@@ -21,4 +23,5 @@ private:
 
   AppState lastDrawnState;
   bool hasLastDrawnState = false;
+  bool screenInverted = false;
 };

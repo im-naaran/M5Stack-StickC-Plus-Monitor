@@ -1,16 +1,6 @@
 // 本文件负责采集系统 CPU/内存指标，并转换成项目内部的百分比结构。
 const systeminformation = require('systeminformation');
-
-// 将任意输入转换为 0-100 的整数百分比。
-function clampPercent(value) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return 0;
-  }
-
-  return Math.min(100, Math.max(0, Math.round(number)));
-}
+const { clampPercent } = require('./percent');
 
 // 将 systeminformation 返回的原始结构转换为 { cpu, memory }。
 function normalizeMetrics(raw = {}) {

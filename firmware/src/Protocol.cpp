@@ -21,7 +21,7 @@ static bool parseInteger(const String& value, int& outValue) {
   }
 
   int start = 0;
-  if (normalized.charAt(0) == '-') {
+  if (normalized.charAt(0) == '-' || normalized.charAt(0) == '+') {
     if (normalized.length() == 1) {
       return false;
     }
@@ -38,28 +38,43 @@ static bool parseInteger(const String& value, int& outValue) {
   return true;
 }
 
-static bool parseTimeText(const String& value, String& outValue) {
+static bool parseTimestampSeconds(const String& value, uint32_t& outValue) {
   String normalized = value;
   normalized.trim();
 
-  if (normalized.length() != 4) {
+  if (normalized.length() == 0) {
     return false;
   }
 
+  uint64_t parsed = 0;
   for (int i = 0; i < normalized.length(); ++i) {
-    if (!isDigit(normalized.charAt(i))) {
+    char ch = normalized.charAt(i);
+    if (!isDigit(ch)) {
+      return false;
+    }
+
+    parsed = parsed * 10 + static_cast<uint64_t>(ch - '0');
+    if (parsed > 4294967295ULL) {
       return false;
     }
   }
 
-  int hour = normalized.substring(0, 2).toInt();
-  int minute = normalized.substring(2, 4).toInt();
+  outValue = static_cast<uint32_t>(parsed);
+  return true;
+}
 
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+static bool parseTimezoneOffsetHours(const String& value, int& outValue) {
+  int parsedValue = 0;
+  if (!parseInteger(value, parsedValue)) {
     return false;
   }
 
-  outValue = normalized.substring(0, 2) + ":" + normalized.substring(2, 4);
+  if (parsedValue < FirmwareConfig::MIN_TIMEZONE_OFFSET_HOURS ||
+      parsedValue > FirmwareConfig::MAX_TIMEZONE_OFFSET_HOURS) {
+    return false;
+  }
+
+  outValue = parsedValue;
   return true;
 }
 
@@ -67,9 +82,6 @@ ParseResult parseMetricsLine(const String& line) {
   ParseResult result;
   String normalized = line;
   normalized.trim();
-
-  bool hasCpu = false;
-  bool hasMemory = false;
 
   int start = 0;
   while (start <= normalized.length()) {
@@ -88,20 +100,26 @@ ParseResult parseMetricsLine(const String& line) {
         value.trim();
 
         if (key == "T") {
-          String parsedTime;
-          if (parseTimeText(value, parsedTime)) {
-            result.timeText = parsedTime;
-            result.hasTime = true;
+          uint32_t timestampSeconds = 0;
+          if (parseTimestampSeconds(value, timestampSeconds)) {
+            result.timestampSeconds = timestampSeconds;
+            result.hasTimestamp = true;
+          }
+        } else if (key == "Z") {
+          int timezoneOffsetHours = 0;
+          if (parseTimezoneOffsetHours(value, timezoneOffsetHours)) {
+            result.timezoneOffsetHours = timezoneOffsetHours;
+            result.hasTimezone = true;
           }
         } else {
           int parsedValue = 0;
           if (parseInteger(value, parsedValue)) {
             if (key == "C") {
               result.metrics.cpuPercent = clampPercent(parsedValue);
-              hasCpu = true;
+              result.hasCpu = true;
             } else if (key == "M") {
               result.metrics.memoryPercent = clampPercent(parsedValue);
-              hasMemory = true;
+              result.hasMemory = true;
             }
           }
         }
@@ -114,6 +132,6 @@ ParseResult parseMetricsLine(const String& line) {
     start = separator + 1;
   }
 
-  result.ok = hasCpu && hasMemory;
+  result.ok = result.hasCpu || result.hasMemory || result.hasTimestamp || result.hasTimezone;
   return result;
 }
