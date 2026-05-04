@@ -29,6 +29,7 @@ void handleBleInput();
 void handleConnectionTimeout();
 void updateBleDiagnostics();
 void handleButtons();
+void updateBatteryState(bool force);
 void applyMetrics(const ParseResult& result);
 void updateClock();
 void updateDisplayOrientation();
@@ -36,14 +37,16 @@ bool readDisplayOrientation(bool& inverted);
 float configuredOrientationAxis(uint8_t axis, float accX, float accY, float accZ);
 void refreshClockText(bool force);
 String formatClockText(uint32_t epochSeconds, int timezoneOffsetHours);
-void cycleBrightness();
-bool buttonBWasPressed();
+void enterSettings();
+void selectNextSettingsOption();
+void applySelectedSettingsOption();
+void cycleSettingsBrightness();
+uint8_t estimateBatteryPercent(float voltage);
 }
 
 void setup() {
   M5.begin();
   imuAvailable = M5.Imu.Init() == 0;
-  pinMode(BUTTON_B_PIN, INPUT);
   serialReceiver.begin(FirmwareConfig::SERIAL_BAUD_RATE);
   bleReceiver.begin();
   displayView.begin();
@@ -56,6 +59,7 @@ void loop() {
   handleBleInput();
   updateBleDiagnostics();
   updateClock();
+  updateBatteryState(false);
   handleConnectionTimeout();
   handleButtons();
   updateDisplayOrientation();
@@ -102,34 +106,41 @@ void handleConnectionTimeout() {
 }
 
 void handleButtons() {
-  if (buttonBWasPressed()) {
-    cycleBrightness();
+  bool buttonBLongReleased = M5.BtnB.wasReleasefor(FirmwareConfig::BUTTON_LONG_PRESS_MS);
+  bool buttonBShortReleased = M5.BtnB.wasReleased();
+
+  if (buttonBLongReleased) {
+    enterSettings();
+    return;
+  }
+
+  if (appState.settingsOpen && buttonBShortReleased) {
+    selectNextSettingsOption();
+  }
+
+  if (appState.settingsOpen && M5.BtnA.wasReleased()) {
+    applySelectedSettingsOption();
   }
 }
 
-bool buttonBWasPressed() {
-  static bool lastRawPressed = false;
-  static bool stablePressed = false;
-  static unsigned long lastRawChangeMs = 0;
-
-  bool rawPressed = digitalRead(BUTTON_B_PIN) == LOW;
+void updateBatteryState(bool force) {
   unsigned long now = millis();
-
-  if (rawPressed != lastRawPressed) {
-    lastRawPressed = rawPressed;
-    lastRawChangeMs = now;
+  if (!force &&
+      appState.lastBatteryRefreshMs != 0 &&
+      now - appState.lastBatteryRefreshMs < FirmwareConfig::BATTERY_REFRESH_INTERVAL_MS) {
+    return;
   }
 
-  if (now - lastRawChangeMs < FirmwareConfig::BUTTON_DEBOUNCE_MS) {
-    return false;
+  float voltage = M5.Axp.GetBatVoltage();
+  appState.lastBatteryRefreshMs = now;
+
+  if (voltage < 2.50f || voltage > 4.50f) {
+    appState.batteryPercentKnown = false;
+    return;
   }
 
-  if (rawPressed != stablePressed) {
-    stablePressed = rawPressed;
-    return stablePressed;
-  }
-
-  return false;
+  appState.batteryPercent = estimateBatteryPercent(voltage);
+  appState.batteryPercentKnown = true;
 }
 
 void applyMetrics(const ParseResult& result) {
@@ -289,9 +300,48 @@ String formatClockText(uint32_t epochSeconds, int timezoneOffsetHours) {
   return String(buffer);
 }
 
-void cycleBrightness() {
+void enterSettings() {
+  appState.settingsOpen = true;
+  appState.selectedSettingsOption = SETTINGS_OPTION_BRIGHTNESS;
+  updateBatteryState(true);
+}
+
+void selectNextSettingsOption() {
+  appState.selectedSettingsOption =
+    (appState.selectedSettingsOption + 1) % SETTINGS_OPTION_COUNT;
+}
+
+void applySelectedSettingsOption() {
+  switch (appState.selectedSettingsOption) {
+    case SETTINGS_OPTION_BRIGHTNESS:
+      cycleSettingsBrightness();
+      break;
+    case SETTINGS_OPTION_EXIT:
+      appState.settingsOpen = false;
+      break;
+    case SETTINGS_OPTION_BATTERY:
+    default:
+      break;
+  }
+}
+
+void cycleSettingsBrightness() {
   appState.brightnessIndex =
     (appState.brightnessIndex + 1) % FirmwareConfig::BRIGHTNESS_LEVEL_COUNT;
   displayView.setBrightnessByIndex(appState.brightnessIndex);
+}
+
+uint8_t estimateBatteryPercent(float voltage) {
+  float ratio =
+    (voltage - FirmwareConfig::BATTERY_EMPTY_VOLTAGE) /
+    (FirmwareConfig::BATTERY_FULL_VOLTAGE - FirmwareConfig::BATTERY_EMPTY_VOLTAGE);
+
+  if (ratio < 0.0f) {
+    ratio = 0.0f;
+  } else if (ratio > 1.0f) {
+    ratio = 1.0f;
+  }
+
+  return static_cast<uint8_t>(roundf(ratio * 100.0f));
 }
 }

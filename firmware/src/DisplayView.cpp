@@ -38,6 +38,11 @@ void DisplayView::drawBoot() {
 }
 
 void DisplayView::draw(const AppState& state) {
+  if (state.settingsOpen) {
+    drawSettings(state);
+    return;
+  }
+
   if (!state.connected) {
     drawDisconnected(state);
     return;
@@ -58,8 +63,45 @@ void DisplayView::draw(const AppState& state) {
   hasLastDrawnState = true;
 }
 
+void DisplayView::drawSettings(const AppState& state) {
+  if (!settingsStateChanged(state)) {
+    return;
+  }
+
+  String brightnessValue =
+    String(state.brightnessIndex + 1) + "/" + FirmwareConfig::BRIGHTNESS_LEVEL_COUNT;
+  String batteryValue = state.batteryPercentKnown ? String(state.batteryPercent) + "%" : "--";
+
+  M5.Lcd.fillScreen(COLOR_BACKGROUND);
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+  M5.Lcd.drawString("settings", 12, 12);
+  M5.Lcd.drawFastHLine(12, 36, 216, COLOR_DIM);
+
+  drawSettingRow(
+    48,
+    state.selectedSettingsOption == SETTINGS_OPTION_BRIGHTNESS,
+    "brightness",
+    brightnessValue);
+  drawSettingRow(
+    74,
+    state.selectedSettingsOption == SETTINGS_OPTION_BATTERY,
+    "battery",
+    batteryValue);
+  drawSettingRow(
+    100,
+    state.selectedSettingsOption == SETTINGS_OPTION_EXIT,
+    "exit",
+    "");
+
+  lastDrawnState = state;
+  hasLastDrawnState = true;
+}
+
 void DisplayView::drawDisconnected(const AppState& state) {
   if (hasLastDrawnState && !lastDrawnState.connected &&
+      !lastDrawnState.settingsOpen &&
       lastDrawnState.timeText == state.timeText &&
       lastDrawnState.bleClientConnected == state.bleClientConnected &&
       lastDrawnState.bleWriteCount == state.bleWriteCount &&
@@ -164,6 +206,20 @@ void DisplayView::drawFooter(const AppState& state) {
   M5.Lcd.drawRightString(state.timeText, 228, 112, 1);
 }
 
+void DisplayView::drawSettingRow(int y, bool selected, const char* label, const String& value) {
+  uint16_t textColor = selected ? COLOR_TEXT : COLOR_MUTED;
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setTextColor(selected ? COLOR_GREEN : COLOR_DIM, COLOR_BACKGROUND);
+  M5.Lcd.drawString(selected ? ">" : " ", 14, y);
+  M5.Lcd.setTextColor(textColor, COLOR_BACKGROUND);
+  M5.Lcd.drawString(label, 34, y);
+
+  if (value.length() > 0) {
+    M5.Lcd.drawRightString(value, 224, y, 1);
+  }
+}
+
 uint16_t DisplayView::colorForPercent(int percent) {
   if (percent >= 85) {
     return COLOR_RED;
@@ -188,5 +244,21 @@ bool DisplayView::stateChanged(const AppState& state) const {
          lastDrawnState.bleClientConnected != state.bleClientConnected ||
          lastDrawnState.bleWriteCount != state.bleWriteCount ||
          lastDrawnState.bleLineCount != state.bleLineCount ||
-         lastDrawnState.brightnessIndex != state.brightnessIndex;
+         lastDrawnState.brightnessIndex != state.brightnessIndex ||
+         lastDrawnState.settingsOpen != state.settingsOpen ||
+         lastDrawnState.selectedSettingsOption != state.selectedSettingsOption ||
+         lastDrawnState.batteryPercentKnown != state.batteryPercentKnown ||
+         lastDrawnState.batteryPercent != state.batteryPercent;
+}
+
+bool DisplayView::settingsStateChanged(const AppState& state) const {
+  if (!hasLastDrawnState) {
+    return true;
+  }
+
+  return !lastDrawnState.settingsOpen ||
+         lastDrawnState.selectedSettingsOption != state.selectedSettingsOption ||
+         lastDrawnState.brightnessIndex != state.brightnessIndex ||
+         lastDrawnState.batteryPercentKnown != state.batteryPercentKnown ||
+         lastDrawnState.batteryPercent != state.batteryPercent;
 }

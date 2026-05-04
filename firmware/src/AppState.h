@@ -8,6 +8,13 @@ struct MetricsState {
   int memoryPercent = 0;
 };
 
+enum SettingsOption {
+  SETTINGS_OPTION_BRIGHTNESS = 0,
+  SETTINGS_OPTION_BATTERY = 1,
+  SETTINGS_OPTION_EXIT = 2,
+  SETTINGS_OPTION_COUNT = 3,
+};
+
 struct AppState {
   MetricsState metrics;
   String timeText = "--:--";
@@ -22,4 +29,9 @@ struct AppState {
   uint32_t bleWriteCount = 0;
   uint32_t bleLineCount = 0;
   uint8_t brightnessIndex = FirmwareConfig::DEFAULT_BRIGHTNESS_INDEX;
+  bool settingsOpen = false;
+  uint8_t selectedSettingsOption = SETTINGS_OPTION_BRIGHTNESS;
+  bool batteryPercentKnown = false;
+  uint8_t batteryPercent = 0;
+  unsigned long lastBatteryRefreshMs = 0;
 };

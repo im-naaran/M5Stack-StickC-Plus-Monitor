@@ -11,9 +11,10 @@ static const char* const BLE_METRICS_CHARACTERISTIC_UUID =
 static const char* const BLE_NOTIFY_CHARACTERISTIC_UUID =
   "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 static const unsigned long DISCONNECT_TIMEOUT_MS = 5000;
-static const unsigned long BUTTON_DEBOUNCE_MS = 25;
+static const unsigned long BUTTON_LONG_PRESS_MS = 800;
 static const unsigned long LOOP_DELAY_MS = 10;
 static const unsigned long CLOCK_REFRESH_INTERVAL_MS = 1000;
+static const unsigned long BATTERY_REFRESH_INTERVAL_MS = 1000;
 static const int DEFAULT_TIMEZONE_OFFSET_HOURS = 8;
 static const int MIN_TIMEZONE_OFFSET_HOURS = -12;
 static const int MAX_TIMEZONE_OFFSET_HOURS = 14;
@@ -36,4 +37,7 @@ static const uint8_t DEFAULT_BRIGHTNESS_INDEX = 1;
 static const uint8_t BRIGHTNESS_LEVELS[] = { 20, 60, 100 };
 static const size_t BRIGHTNESS_LEVEL_COUNT =
   sizeof(BRIGHTNESS_LEVELS) / sizeof(BRIGHTNESS_LEVELS[0]);
+
+static const float BATTERY_EMPTY_VOLTAGE = 3.20f;
+static const float BATTERY_FULL_VOLTAGE = 4.20f;
 }
