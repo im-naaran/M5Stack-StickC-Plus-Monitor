@@ -46,6 +46,7 @@ function parseCliArgs(argv) {
     .option('--ble-connect-delay <ms>', 'delay after BLE connect before GATT discovery', parseInteger)
     .option('--ble-discovery-timeout <ms>', 'BLE GATT discovery timeout in milliseconds', parseInteger)
     .option('--ble-discovery-retries <number>', 'BLE GATT discovery retry count', parseInteger)
+    .option('--ble-discovery-retry-delay <ms>', 'delay between BLE GATT discovery retries', parseInteger)
     .option('--verbose', 'enable debug logs');
 
   program.parse(argv);
@@ -64,6 +65,7 @@ function parseCliArgs(argv) {
     bleConnectDelayMs: options.bleConnectDelay,
     bleDiscoveryTimeoutMs: options.bleDiscoveryTimeout,
     bleDiscoveryRetries: options.bleDiscoveryRetries,
+    bleDiscoveryRetryDelayMs: options.bleDiscoveryRetryDelay,
     verbose: options.verbose === true ? true : undefined,
   };
 }

@@ -29,5 +29,4 @@ async function collectMetrics() {
 module.exports = {
   collectMetrics,
   normalizeMetrics,
-  clampPercent,
 };

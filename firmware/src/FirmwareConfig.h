@@ -4,17 +4,23 @@
 
 namespace FirmwareConfig {
 static const unsigned long SERIAL_BAUD_RATE = 115200;
+static const uint32_t CPU_FREQUENCY_MHZ = 80;
 static const char* const BLE_DEVICE_NAME = "M5Monitor-Plus";
 static const char* const BLE_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 static const char* const BLE_METRICS_CHARACTERISTIC_UUID =
   "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-static const char* const BLE_NOTIFY_CHARACTERISTIC_UUID =
-  "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+static const uint16_t BLE_ADVERTISING_MIN_INTERVAL_UNITS = 800;
+static const uint16_t BLE_ADVERTISING_MAX_INTERVAL_UNITS = 1600;
 static const unsigned long DISCONNECT_TIMEOUT_MS = 5000;
-static const unsigned long BUTTON_LONG_PRESS_MS = 800;
-static const unsigned long LOOP_DELAY_MS = 10;
+static const unsigned long BUTTON_LONG_PRESS_MS = 3000;
+static const unsigned long LOOP_DELAY_MS = 20;
+static const unsigned long SCREEN_SLEEP_LOOP_DELAY_MS = 200;
 static const unsigned long CLOCK_REFRESH_INTERVAL_MS = 1000;
-static const unsigned long BATTERY_REFRESH_INTERVAL_MS = 1000;
+static const unsigned long BATTERY_REFRESH_INTERVAL_MS = 5000;
+static const unsigned long MAIN_DISPLAY_REFRESH_INTERVAL_MS = 250;
+static const unsigned long DISCONNECTED_SCREEN_DIM_MS = 20000;
+static const unsigned long DISCONNECTED_SCREEN_SLEEP_MS = 60000;
+static const uint8_t DISCONNECTED_SCREEN_DIM_BRIGHTNESS_INDEX = 0;
 static const int DEFAULT_TIMEZONE_OFFSET_HOURS = 8;
 static const int MIN_TIMEZONE_OFFSET_HOURS = -12;
 static const int MAX_TIMEZONE_OFFSET_HOURS = 14;
@@ -33,8 +39,8 @@ static const float DISPLAY_ORIENTATION_DOT_THRESHOLD = 0.45f;
 static const unsigned long ORIENTATION_SAMPLE_INTERVAL_MS = 80;
 static const unsigned long ORIENTATION_STABLE_MS = 240;
 
-static const uint8_t DEFAULT_BRIGHTNESS_INDEX = 1;
-static const uint8_t BRIGHTNESS_LEVELS[] = { 20, 60, 100 };
+static const uint8_t DEFAULT_BRIGHTNESS_INDEX = 2;
+static const uint8_t BRIGHTNESS_LEVELS[] = { 20, 40, 60, 80, 100 };
 static const size_t BRIGHTNESS_LEVEL_COUNT =
   sizeof(BRIGHTNESS_LEVELS) / sizeof(BRIGHTNESS_LEVELS[0]);
 

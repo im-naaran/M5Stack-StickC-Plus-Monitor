@@ -286,7 +286,9 @@ function normalizeOptions(options) {
       : CONFIG.bleConnectDelayMs,
     discoveryTimeoutMs: Number(options.discoveryTimeoutMs) || CONFIG.bleDiscoveryTimeoutMs,
     discoveryRetries: Number(options.discoveryRetries) || CONFIG.bleDiscoveryRetries,
-    discoveryRetryDelayMs: Number(options.discoveryRetryDelayMs) || CONFIG.bleDiscoveryRetryDelayMs,
+    discoveryRetryDelayMs: Number.isInteger(Number(options.discoveryRetryDelayMs))
+      ? Number(options.discoveryRetryDelayMs)
+      : CONFIG.bleDiscoveryRetryDelayMs,
   };
 }
 

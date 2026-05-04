@@ -14,6 +14,41 @@ const uint16_t COLOR_YELLOW = 0xFFE0;
 const uint16_t COLOR_RED = 0xF800;
 const uint8_t ROTATION_LANDSCAPE = 1;
 const uint8_t ROTATION_LANDSCAPE_INVERTED = 3;
+const uint8_t SETTINGS_VISIBLE_ROWS = 4;
+const uint8_t SETTINGS_ROW_START_Y = 42;
+const uint8_t SETTINGS_ROW_HEIGHT = 22;
+
+const char* settingLabel(uint8_t option) {
+  switch (option) {
+    case SETTINGS_OPTION_BRIGHTNESS:
+      return "brightness";
+    case SETTINGS_OPTION_BATTERY:
+      return "battery";
+    case SETTINGS_OPTION_BLE:
+      return "ble";
+    case SETTINGS_OPTION_ROTATE:
+      return "rotate";
+    case SETTINGS_OPTION_EXIT:
+      return "exit";
+    default:
+      return "";
+  }
+}
+
+String settingValue(const AppState& state, uint8_t option) {
+  switch (option) {
+    case SETTINGS_OPTION_BRIGHTNESS:
+      return String(state.brightnessIndex + 1) + "/" + FirmwareConfig::BRIGHTNESS_LEVEL_COUNT;
+    case SETTINGS_OPTION_BATTERY:
+      return state.batteryPercentKnown ? String(state.batteryPercent) + "%" : "--";
+    case SETTINGS_OPTION_BLE:
+      return state.bleEnabled ? "on" : "off";
+    case SETTINGS_OPTION_ROTATE:
+      return state.autoRotateEnabled ? "on" : "off";
+    default:
+      return "";
+  }
+}
 }
 
 void DisplayView::begin() {
@@ -52,6 +87,14 @@ void DisplayView::draw(const AppState& state) {
     return;
   }
 
+  unsigned long now = millis();
+  if (hasLastDrawnState &&
+      lastDrawnState.connected &&
+      !lastDrawnState.settingsOpen &&
+      now - lastMainDrawMs < FirmwareConfig::MAIN_DISPLAY_REFRESH_INTERVAL_MS) {
+    return;
+  }
+
   drawLayout();
   drawMetricBlock(12, 18, "CPU", state.metrics.cpuPercent);
   drawMetricBlock(132, 18, "RAM", state.metrics.memoryPercent);
@@ -61,6 +104,7 @@ void DisplayView::draw(const AppState& state) {
 
   lastDrawnState = state;
   hasLastDrawnState = true;
+  lastMainDrawMs = now;
 }
 
 void DisplayView::drawSettings(const AppState& state) {
@@ -68,32 +112,36 @@ void DisplayView::drawSettings(const AppState& state) {
     return;
   }
 
-  String brightnessValue =
-    String(state.brightnessIndex + 1) + "/" + FirmwareConfig::BRIGHTNESS_LEVEL_COUNT;
-  String batteryValue = state.batteryPercentKnown ? String(state.batteryPercent) + "%" : "--";
-
   M5.Lcd.fillScreen(COLOR_BACKGROUND);
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
   M5.Lcd.drawString("settings", 12, 12);
+  M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
+  M5.Lcd.drawRightString(
+    String(state.selectedSettingsOption + 1) + "/" + SETTINGS_OPTION_COUNT,
+    228,
+    12,
+    1);
   M5.Lcd.drawFastHLine(12, 36, 216, COLOR_DIM);
 
-  drawSettingRow(
-    48,
-    state.selectedSettingsOption == SETTINGS_OPTION_BRIGHTNESS,
-    "brightness",
-    brightnessValue);
-  drawSettingRow(
-    74,
-    state.selectedSettingsOption == SETTINGS_OPTION_BATTERY,
-    "battery",
-    batteryValue);
-  drawSettingRow(
-    100,
-    state.selectedSettingsOption == SETTINGS_OPTION_EXIT,
-    "exit",
-    "");
+  uint8_t firstVisibleOption = 0;
+  if (state.selectedSettingsOption >= SETTINGS_VISIBLE_ROWS) {
+    firstVisibleOption = state.selectedSettingsOption - SETTINGS_VISIBLE_ROWS + 1;
+  }
+
+  for (uint8_t row = 0; row < SETTINGS_VISIBLE_ROWS; ++row) {
+    uint8_t option = firstVisibleOption + row;
+    if (option >= SETTINGS_OPTION_COUNT) {
+      break;
+    }
+
+    drawSettingRow(
+      SETTINGS_ROW_START_Y + row * SETTINGS_ROW_HEIGHT,
+      state.selectedSettingsOption == option,
+      settingLabel(option),
+      settingValue(state, option));
+  }
 
   lastDrawnState = state;
   hasLastDrawnState = true;
@@ -106,6 +154,7 @@ void DisplayView::drawDisconnected(const AppState& state) {
       lastDrawnState.bleClientConnected == state.bleClientConnected &&
       lastDrawnState.bleWriteCount == state.bleWriteCount &&
       lastDrawnState.bleLineCount == state.bleLineCount &&
+      lastDrawnState.bleEnabled == state.bleEnabled &&
       lastDrawnState.brightnessIndex == state.brightnessIndex) {
     return;
   }
@@ -117,7 +166,10 @@ void DisplayView::drawDisconnected(const AppState& state) {
   M5.Lcd.setTextColor(COLOR_RED, COLOR_BACKGROUND);
   M5.Lcd.drawString("Disconnected", 120, 48);
   M5.Lcd.setTextSize(1);
-  if (state.bleClientConnected) {
+  if (!state.bleEnabled) {
+    M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
+    M5.Lcd.drawString("BLE off", 120, 76);
+  } else if (state.bleClientConnected) {
     M5.Lcd.setTextColor(COLOR_GREEN, COLOR_BACKGROUND);
     M5.Lcd.drawString(
       String("BLE linked W:") + state.bleWriteCount + " L:" + state.bleLineCount,
@@ -143,6 +195,16 @@ void DisplayView::setBrightnessByIndex(uint8_t index) {
   M5.Axp.ScreenBreath(FirmwareConfig::BRIGHTNESS_LEVELS[safeIndex]);
 }
 
+void DisplayView::sleepScreen() {
+  M5.Axp.ScreenSwitch(false);
+}
+
+void DisplayView::wakeScreen(uint8_t brightnessIndex) {
+  M5.Axp.ScreenSwitch(true);
+  setBrightnessByIndex(brightnessIndex);
+  hasLastDrawnState = false;
+}
+
 void DisplayView::setInverted(bool inverted) {
   if (screenInverted == inverted) {
     return;
@@ -152,6 +214,10 @@ void DisplayView::setInverted(bool inverted) {
   applyRotation();
   M5.Lcd.fillScreen(COLOR_BACKGROUND);
   hasLastDrawnState = false;
+}
+
+bool DisplayView::isInverted() const {
+  return screenInverted;
 }
 
 void DisplayView::applyRotation() {
@@ -241,14 +307,7 @@ bool DisplayView::stateChanged(const AppState& state) const {
          lastDrawnState.metrics.cpuPercent != state.metrics.cpuPercent ||
          lastDrawnState.metrics.memoryPercent != state.metrics.memoryPercent ||
          lastDrawnState.timeText != state.timeText ||
-         lastDrawnState.bleClientConnected != state.bleClientConnected ||
-         lastDrawnState.bleWriteCount != state.bleWriteCount ||
-         lastDrawnState.bleLineCount != state.bleLineCount ||
-         lastDrawnState.brightnessIndex != state.brightnessIndex ||
-         lastDrawnState.settingsOpen != state.settingsOpen ||
-         lastDrawnState.selectedSettingsOption != state.selectedSettingsOption ||
-         lastDrawnState.batteryPercentKnown != state.batteryPercentKnown ||
-         lastDrawnState.batteryPercent != state.batteryPercent;
+         lastDrawnState.settingsOpen != state.settingsOpen;
 }
 
 bool DisplayView::settingsStateChanged(const AppState& state) const {
@@ -259,6 +318,8 @@ bool DisplayView::settingsStateChanged(const AppState& state) const {
   return !lastDrawnState.settingsOpen ||
          lastDrawnState.selectedSettingsOption != state.selectedSettingsOption ||
          lastDrawnState.brightnessIndex != state.brightnessIndex ||
+         lastDrawnState.bleEnabled != state.bleEnabled ||
+         lastDrawnState.autoRotateEnabled != state.autoRotateEnabled ||
          lastDrawnState.batteryPercentKnown != state.batteryPercentKnown ||
          lastDrawnState.batteryPercent != state.batteryPercent;
 }

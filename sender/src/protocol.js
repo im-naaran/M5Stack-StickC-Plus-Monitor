@@ -30,7 +30,7 @@ function formatTimezoneOffsetHours(value = 8) {
 
 // 按固定字段顺序编码指标，并追加换行符作为串口消息边界。
 function encodeMetrics(metrics = {}, options = {}) {
-  const normalizedOptions = options instanceof Date ? { includeTime: true, date: options } : (options || {});
+  const normalizedOptions = options || {};
   const fields = [`C:${padPercent(metrics.cpu)}`, `M:${padPercent(metrics.memory)}`];
 
   if (normalizedOptions.includeTime) {
@@ -46,5 +46,4 @@ module.exports = {
   formatTimestamp,
   formatTimezoneOffsetHours,
   padPercent,
-  clampPercent,
 };

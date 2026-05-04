@@ -15,11 +15,13 @@ SerialReceiver serialReceiver;
 BleReceiver bleReceiver;
 DisplayView displayView;
 bool imuAvailable = false;
-bool displayInverted = false;
 bool hasPendingOrientation = false;
 bool pendingOrientationInverted = false;
 unsigned long lastOrientationSampleMs = 0;
 unsigned long pendingOrientationSinceMs = 0;
+unsigned long disconnectedScreenAwakeSinceMs = 0;
+bool disconnectedBrightnessDimmed = false;
+bool buttonBLongPressHandled = false;
 bool orientationBaselineReady = false;
 float orientationBaselineAxis1 = 0.0f;
 float orientationBaselineAxis2 = 0.0f;
@@ -29,9 +31,12 @@ void handleBleInput();
 void handleConnectionTimeout();
 void updateBleDiagnostics();
 void handleButtons();
+void updateScreenPower();
+void sleepScreen();
+void wakeScreen();
+unsigned long loopDelayMs();
 void updateBatteryState(bool force);
 void applyMetrics(const ParseResult& result);
-void updateClock();
 void updateDisplayOrientation();
 bool readDisplayOrientation(bool& inverted);
 float configuredOrientationAxis(uint8_t axis, float accX, float accY, float accZ);
@@ -41,10 +46,13 @@ void enterSettings();
 void selectNextSettingsOption();
 void applySelectedSettingsOption();
 void cycleSettingsBrightness();
+void toggleBle();
+void toggleAutoRotate();
 uint8_t estimateBatteryPercent(float voltage);
 }
 
 void setup() {
+  setCpuFrequencyMhz(FirmwareConfig::CPU_FREQUENCY_MHZ);
   M5.begin();
   imuAvailable = M5.Imu.Init() == 0;
   serialReceiver.begin(FirmwareConfig::SERIAL_BAUD_RATE);
@@ -58,13 +66,18 @@ void loop() {
   handleSerialInput();
   handleBleInput();
   updateBleDiagnostics();
-  updateClock();
+  refreshClockText(false);
   updateBatteryState(false);
   handleConnectionTimeout();
   handleButtons();
-  updateDisplayOrientation();
-  displayView.draw(appState);
-  delay(FirmwareConfig::LOOP_DELAY_MS);
+  updateScreenPower();
+
+  if (!appState.screenSleeping) {
+    updateDisplayOrientation();
+    displayView.draw(appState);
+  }
+
+  delay(loopDelayMs());
 }
 
 namespace {
@@ -80,6 +93,10 @@ void handleSerialInput() {
 }
 
 void handleBleInput() {
+  if (!appState.bleEnabled) {
+    return;
+  }
+
   String line;
   while (bleReceiver.readLine(line)) {
     ParseResult result = parseMetricsLine(line);
@@ -90,6 +107,7 @@ void handleBleInput() {
 }
 
 void updateBleDiagnostics() {
+  appState.bleEnabled = bleReceiver.isEnabled();
   appState.bleClientConnected = bleReceiver.isClientConnected();
   appState.bleWriteCount = bleReceiver.getWriteCount();
   appState.bleLineCount = bleReceiver.getLineCount();
@@ -106,11 +124,30 @@ void handleConnectionTimeout() {
 }
 
 void handleButtons() {
-  bool buttonBLongReleased = M5.BtnB.wasReleasefor(FirmwareConfig::BUTTON_LONG_PRESS_MS);
+  bool buttonBLongPressed = M5.BtnB.pressedFor(FirmwareConfig::BUTTON_LONG_PRESS_MS);
   bool buttonBShortReleased = M5.BtnB.wasReleased();
+  bool buttonAReleased = M5.BtnA.wasReleased();
 
-  if (buttonBLongReleased) {
-    enterSettings();
+  if (appState.screenSleeping &&
+      (M5.BtnA.isPressed() ||
+       M5.BtnB.isPressed() ||
+       buttonAReleased ||
+       buttonBShortReleased ||
+       buttonBLongPressed)) {
+    wakeScreen();
+    return;
+  }
+
+  if (buttonBLongPressed && !buttonBLongPressHandled) {
+    buttonBLongPressHandled = true;
+    if (!appState.settingsOpen) {
+      enterSettings();
+    }
+    return;
+  }
+
+  if (buttonBShortReleased && buttonBLongPressHandled) {
+    buttonBLongPressHandled = false;
     return;
   }
 
@@ -118,9 +155,64 @@ void handleButtons() {
     selectNextSettingsOption();
   }
 
-  if (appState.settingsOpen && M5.BtnA.wasReleased()) {
+  if (appState.settingsOpen && buttonAReleased) {
     applySelectedSettingsOption();
   }
+}
+
+void updateScreenPower() {
+  unsigned long now = millis();
+
+  if (appState.connected || appState.settingsOpen) {
+    disconnectedScreenAwakeSinceMs = 0;
+    if (disconnectedBrightnessDimmed) {
+      displayView.setBrightnessByIndex(appState.brightnessIndex);
+      disconnectedBrightnessDimmed = false;
+    }
+    wakeScreen();
+    return;
+  }
+
+  if (disconnectedScreenAwakeSinceMs == 0) {
+    disconnectedScreenAwakeSinceMs = now;
+    return;
+  }
+
+  if (!appState.screenSleeping &&
+      !disconnectedBrightnessDimmed &&
+      now - disconnectedScreenAwakeSinceMs >= FirmwareConfig::DISCONNECTED_SCREEN_DIM_MS) {
+    displayView.setBrightnessByIndex(
+      FirmwareConfig::DISCONNECTED_SCREEN_DIM_BRIGHTNESS_INDEX);
+    disconnectedBrightnessDimmed = true;
+  }
+
+  if (!appState.screenSleeping &&
+      now - disconnectedScreenAwakeSinceMs >= FirmwareConfig::DISCONNECTED_SCREEN_SLEEP_MS) {
+    sleepScreen();
+  }
+}
+
+void sleepScreen() {
+  appState.screenSleeping = true;
+  displayView.sleepScreen();
+  hasPendingOrientation = false;
+}
+
+void wakeScreen() {
+  if (!appState.screenSleeping) {
+    return;
+  }
+
+  appState.screenSleeping = false;
+  disconnectedScreenAwakeSinceMs = millis();
+  disconnectedBrightnessDimmed = false;
+  displayView.wakeScreen(appState.brightnessIndex);
+}
+
+unsigned long loopDelayMs() {
+  return appState.screenSleeping ?
+    FirmwareConfig::SCREEN_SLEEP_LOOP_DELAY_MS :
+    FirmwareConfig::LOOP_DELAY_MS;
 }
 
 void updateBatteryState(bool force) {
@@ -167,14 +259,11 @@ void applyMetrics(const ParseResult& result) {
 
   appState.connected = true;
   appState.lastUpdateMs = millis();
-}
-
-void updateClock() {
-  refreshClockText(false);
+  wakeScreen();
 }
 
 void updateDisplayOrientation() {
-  if (!imuAvailable) {
+  if (!imuAvailable || !appState.autoRotateEnabled) {
     return;
   }
 
@@ -190,7 +279,7 @@ void updateDisplayOrientation() {
     return;
   }
 
-  if (detectedInverted == displayInverted) {
+  if (detectedInverted == displayView.isInverted()) {
     hasPendingOrientation = false;
     return;
   }
@@ -206,9 +295,8 @@ void updateDisplayOrientation() {
     return;
   }
 
-  displayInverted = detectedInverted;
   hasPendingOrientation = false;
-  displayView.setInverted(displayInverted);
+  displayView.setInverted(detectedInverted);
 }
 
 bool readDisplayOrientation(bool& inverted) {
@@ -301,6 +389,11 @@ String formatClockText(uint32_t epochSeconds, int timezoneOffsetHours) {
 }
 
 void enterSettings() {
+  if (disconnectedBrightnessDimmed) {
+    displayView.setBrightnessByIndex(appState.brightnessIndex);
+    disconnectedBrightnessDimmed = false;
+  }
+
   appState.settingsOpen = true;
   appState.selectedSettingsOption = SETTINGS_OPTION_BRIGHTNESS;
   updateBatteryState(true);
@@ -316,6 +409,12 @@ void applySelectedSettingsOption() {
     case SETTINGS_OPTION_BRIGHTNESS:
       cycleSettingsBrightness();
       break;
+    case SETTINGS_OPTION_BLE:
+      toggleBle();
+      break;
+    case SETTINGS_OPTION_ROTATE:
+      toggleAutoRotate();
+      break;
     case SETTINGS_OPTION_EXIT:
       appState.settingsOpen = false;
       break;
@@ -329,6 +428,17 @@ void cycleSettingsBrightness() {
   appState.brightnessIndex =
     (appState.brightnessIndex + 1) % FirmwareConfig::BRIGHTNESS_LEVEL_COUNT;
   displayView.setBrightnessByIndex(appState.brightnessIndex);
+}
+
+void toggleBle() {
+  appState.bleEnabled = !appState.bleEnabled;
+  bleReceiver.setEnabled(appState.bleEnabled);
+  updateBleDiagnostics();
+}
+
+void toggleAutoRotate() {
+  appState.autoRotateEnabled = !appState.autoRotateEnabled;
+  hasPendingOrientation = false;
 }
 
 uint8_t estimateBatteryPercent(float voltage) {

@@ -2,31 +2,138 @@
 
 使用 M5StickC Plus 作为电脑状态监控小屏，通过 USB 串口或 BLE GATT 显示 CPU 使用率、内存使用率、连接状态和电脑本地时间。
 
-## 功能
+## 功能概览
 
-- USB 有线串口通信，波特率 `115200`。
+- USB Serial 通信，默认波特率 `115200`。
 - BLE GATT 自定义服务通信，电脑端作为 Central，M5StickC Plus 作为 Peripheral。
-- 展示 CPU 使用率、内存使用率、PC 连接状态。
-- 底部显示时间。电脑端启动时发送秒级 Unix 时间戳和时区，ESP32 本地维护时钟并显示 `HH:MM`。
-- Button B 循环切换低、中、高三档亮度。
-- USB 或 BLE 断开后固件显示 `Disconnected`；重新连接后 Node Sender 会自动重连。
+- 显示 CPU、RAM、PC 连接状态和 `HH:MM` 时间。
+- 长按 B 满 3 秒进入设置页，设置页支持滚动列表。
+- 设置页可调整亮度、查看电量、开关 BLE、开关自动旋转。
+- 显示 `Disconnected` 后 20 秒降到最低亮度，60 秒关闭屏幕背光，按 A/B 任意键唤醒。
+- 屏幕熄灭后暂停绘制和自动旋转采样，并降低主循环频率。
+- 固件默认将 ESP32 CPU 频率设为 `80MHz`。
 
 ## 项目结构
 
 ```text
 firmware/   M5StickC Plus 固件，PlatformIO + Arduino C++
-sender/     电脑端 Node.js 服务，采集指标并写入 USB Serial
-docs/       开发规格和协议说明
+sender/     电脑端 Node.js 服务，采集指标并写入 USB Serial 或 BLE
+docs/       固件、发送端和协议的开发说明
 ```
 
-详细开发规格：
+详细说明：
 
-- [Node Sender](docs/NODE_SENDER.md)
 - [ESP32 Firmware](docs/ESP32_FIRMWARE.md)
+- [Node Sender](docs/NODE_SENDER.md)
+
+## 快速开始
+
+### 1. 刷写固件
+
+先停止 Node Sender 或其他串口监视器，避免串口被占用。
+
+```bash
+cd firmware
+pio run -t upload
+```
+
+如果需要指定设备端口：
+
+```bash
+cd firmware
+pio run -t upload --upload-port /dev/tty.usbserial-xxxx
+```
+
+不知道串口名时可以先列出端口：
+
+```bash
+cd sender
+pnpm install
+pnpm run list-ports
+```
+
+### 2. 启动 USB 发送端
+
+```bash
+cd sender
+pnpm install
+pnpm run start -- --port /dev/tty.usbserial-xxxx --interval 2000
+```
+
+如果只连接了一台疑似 M5StickC Plus 设备，可以省略 `--port`，发送端会尝试自动选择：
+
+```bash
+cd sender
+pnpm run start -- --interval 2000
+```
+
+### 3. 启动 BLE 发送端
+
+先确认固件设置页中的 `ble` 为 `on`。
+
+```bash
+cd sender
+pnpm install
+pnpm run list-ble
+pnpm run start -- --transport ble --interval 2000
+```
+
+多台设备同时存在时指定设备名：
+
+```bash
+pnpm run start -- --transport ble --ble-name M5Monitor-Plus --interval 2000
+```
+
+如果 GATT discovery 不稳定，可增加连接后的等待时间：
+
+```bash
+pnpm run start -- --transport ble --ble-connect-delay 2000 --interval 2000
+```
+
+### 4. 调试协议输出
+
+```bash
+pnpm run start -- --port /dev/tty.usbserial-xxxx --interval 2000 --verbose
+pnpm run start -- --transport ble --interval 2000 --verbose
+```
+
+## 设备操作
+
+正常页面：
+
+- 长按 B 满 3 秒：进入设置页。
+- USB 或 BLE 收到有效数据后显示 `PC Connected`。
+- 超过 5 秒未收到有效数据后显示 `Disconnected`。
+- 显示 `Disconnected` 后 20 秒先降到最低亮度，60 秒后屏幕背光关闭；按 A 或 B 唤醒。
+
+设置页：
+
+- 短按 B：移动到下一个设置项。
+- 短按 A：修改当前设置项。
+- 选中 `exit` 后短按 A：退出设置页。
+- 设置项超过屏幕高度时会自动滚动，右上角显示当前位置，例如 `3/5`。
+
+当前设置项：
+
+| 设置项 | 取值 | 说明 |
+| --- | --- | --- |
+| `brightness` | `1/5` 到 `5/5` | 屏幕亮度，依次对应 `20, 40, 60, 80, 100` |
+| `battery` | 百分比或 `--` | 当前电池电量估算值，只读 |
+| `ble` | `on/off` | BLE 开关，默认 `on` |
+| `rotate` | `on/off` | 自动旋转开关，默认 `on` |
+| `exit` | - | 短按 A 退出设置页 |
+
+说明：
+
+- `battery` 是按电池电压估算的百分比，短时间跳动不一定代表真实容量快速下降。
+- `ble off` 后无法通过 BLE 连接设备，但 USB Serial 仍可使用；需要在设置页重新打开 BLE 才能用 BLE。
+- `rotate off` 后不会继续采样 IMU，屏幕保持当前方向。
 
 ## 串口协议
 
-Node Sender 启动时发送一行带时间同步信息的文本：
+USB Serial 和 BLE 共用同一套文本协议。每条消息是一行，以 `\n` 结尾。
+
+启动时发送带时间同步信息的文本：
 
 ```text
 C:025|M:060|T:1714440000|Z:+8\n
@@ -49,11 +156,7 @@ C:025|M:060\n
 
 ESP32 接收端按字段增量更新：字段存在就读取，不存在就保持当前状态。
 
-USB Serial 和 BLE 共用同一套文本协议。BLE 模式下，Node Sender 将每行 UTF-8 文本写入 GATT characteristic。
-
 ## BLE GATT
-
-第一版 BLE 不走系统级蓝牙配对，采用应用层设备发现和连接。
 
 | 项 | 值 |
 | --- | --- |
@@ -63,61 +166,33 @@ USB Serial 和 BLE 共用同一套文本协议。BLE 模式下，Node Sender 将
 | Characteristic Properties | `Write`, `Write Without Response` |
 | Payload | UTF-8 协议文本，例如 `C:025|M:060\n` |
 
-## 刷写固件
+BLE 不走系统级蓝牙配对。电脑端按 Service UUID 扫描并连接。
 
-先停止 Node Sender 或其他串口监视器，避免串口被占用。
+## 常见问题
 
-```bash
-cd firmware
-pio run -t upload --upload-port /dev/tty.usbserial-xxxx # 设备号可以通过下文 node 服务获取
-# 如果只有一台设备，可简写为
-pio run -t upload 
-```
+### 串口上传失败
 
-如果串口名不同，先查看可用端口：
+确认 Node Sender、串口监视器或其他占用串口的程序已经停止，然后重新执行上传命令。
 
-```bash
-cd sender
-npm run list-ports
-```
+### BLE 找不到设备
 
-## 启动服务
-
-安装依赖：
+确认设置页 `ble` 为 `on`。如果屏幕已经熄灭，可以按 A/B 唤醒后重新执行：
 
 ```bash
 cd sender
-npm install
+pnpm run list-ble
 ```
 
-启动发送端：
-
-```bash
-npm run start -- --port /dev/tty.usbserial-xxxx --interval 2000
-```
-
-启动 BLE 发送端：
-
-```bash
-npm run list-ble
-npm run start -- --transport ble --interval 2000
-# 多台设备时指定设备
-npm run start -- --transport ble --ble-name M5Monitor-Plus --interval 2000
-# GATT discovery 不稳定时可增加连接后的等待时间
-npm run start -- --transport ble --ble-connect-delay 2000 --interval 2000
-```
+### BLE 原生依赖报错
 
 BLE 使用 Node 依赖 `@abandonware/noble`。如果看到 `No native build was found ...`，用当前 Node 版本重新安装依赖：
 
 ```bash
 cd sender
-npm install
-npm run list-ble
+pnpm install
+pnpm run list-ble
 ```
 
-调试协议输出：
+### 电量显示下降很快
 
-```bash
-npm run start -- --port /dev/tty.usbserial-xxxx --interval 2000 --verbose
-npm run start -- --transport ble --interval 2000 --verbose
-```
+电量百分比是电压估算值。屏幕背光、BLE、CPU 负载都会影响瞬时电压，短时间看到百分比跳动不一定等同于真实电池容量线性下降。

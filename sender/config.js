@@ -51,6 +51,7 @@ const CONFIG = {
 
   // BLE discovery 失败后下一次尝试前的等待时间，单位毫秒。
   bleDiscoveryRetryDelayMs: 500,
+  minBleDiscoveryRetryDelayMs: 0,
 
   // 是否输出调试日志。开启后会打印每次写入串口的协议文本。
   verbose: false,

@@ -13,6 +13,7 @@ const CLI_CONFIG_KEYS = [
   'bleConnectDelayMs',
   'bleDiscoveryTimeoutMs',
   'bleDiscoveryRetries',
+  'bleDiscoveryRetryDelayMs',
 ];
 
 // 基于默认 CONFIG 和命令行参数生成最终运行配置。
@@ -44,6 +45,7 @@ function validateConfig(config) {
   const bleConnectDelayMs = Number(config.bleConnectDelayMs);
   const bleDiscoveryTimeoutMs = Number(config.bleDiscoveryTimeoutMs);
   const bleDiscoveryRetries = Number(config.bleDiscoveryRetries);
+  const bleDiscoveryRetryDelayMs = Number(config.bleDiscoveryRetryDelayMs);
 
   if (!Number.isInteger(baudRate) || baudRate <= 0) {
     errors.push('baudRate must be a positive integer');
@@ -95,6 +97,15 @@ function validateConfig(config) {
     errors.push(`bleDiscoveryRetries must be an integer >= ${config.minBleDiscoveryRetries}`);
   }
 
+  if (
+    !Number.isInteger(bleDiscoveryRetryDelayMs) ||
+    bleDiscoveryRetryDelayMs < config.minBleDiscoveryRetryDelayMs
+  ) {
+    errors.push(
+      `bleDiscoveryRetryDelayMs must be an integer >= ${config.minBleDiscoveryRetryDelayMs}`,
+    );
+  }
+
   if (errors.length > 0) {
     throw new Error(`Invalid config: ${errors.join('; ')}`);
   }
@@ -114,6 +125,7 @@ function validateConfig(config) {
     bleConnectDelayMs,
     bleDiscoveryTimeoutMs,
     bleDiscoveryRetries,
+    bleDiscoveryRetryDelayMs,
     autoSelectPort: Boolean(config.autoSelectPort),
     verbose: Boolean(config.verbose),
   };

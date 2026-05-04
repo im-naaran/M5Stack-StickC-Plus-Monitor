@@ -51,9 +51,9 @@ sender/
 
 `sender/package.json` 声明 Node.js 项目依赖和脚本：
 
-- `npm start`：运行 `node src/index.js`。
-- `npm run list-ports`：运行 `node src/index.js --list-ports`。
-- `npm run list-ble`：运行 `node src/index.js --list-ble`。
+- `pnpm start`：运行 `node src/index.js`。
+- `pnpm run list-ports`：运行 `node src/index.js --list-ports`。
+- `pnpm run list-ble`：运行 `node src/index.js --list-ble`。
 
 依赖：
 
@@ -84,6 +84,7 @@ sender/
 | `bleConnectDelayMs` | `1000` | BLE 连接成功后等待 GATT discovery 的时间 |
 | `bleDiscoveryTimeoutMs` | `5000` | BLE GATT discovery 单次超时时间 |
 | `bleDiscoveryRetries` | `3` | BLE GATT discovery 失败后的重试次数 |
+| `bleDiscoveryRetryDelayMs` | `500` | BLE GATT discovery 失败后下一次尝试前的等待时间 |
 | `verbose` | `false` | 是否输出调试日志 |
 
 配置合并优先级：
@@ -100,6 +101,10 @@ CLI 参数 > CONFIG
 - `autoSelectPort = false` 时，`port` 必须非空。
 - `transport` 必须为 `serial` 或 `ble`。
 - `bleScanTimeoutMs` 必须为大于等于 `1000` 的整数。
+- `bleConnectDelayMs` 必须为大于等于 `0` 的整数。
+- `bleDiscoveryTimeoutMs` 必须为大于等于 `1000` 的整数。
+- `bleDiscoveryRetries` 必须为大于等于 `1` 的整数。
+- `bleDiscoveryRetryDelayMs` 必须为大于等于 `0` 的整数。
 
 ## 6. 命令行参数
 
@@ -116,6 +121,7 @@ CLI 参数 > CONFIG
 --ble-connect-delay <ms> 指定连接后等待 GATT discovery 的时间
 --ble-discovery-timeout <ms> 指定 GATT discovery 超时
 --ble-discovery-retries <number> 指定 GATT discovery 重试次数
+--ble-discovery-retry-delay <ms> 指定 GATT discovery 重试间隔
 --verbose           输出调试日志
 ```
 
@@ -214,7 +220,7 @@ BLE GATT 参数：
 `src/protocol.js`：
 
 - 编码项目协议。
-- 提供 `encodeMetrics`、`formatTimestamp`、`formatTimezoneOffsetHours`、`padPercent`、`clampPercent`。
+- 提供 `encodeMetrics`、`formatTimestamp`、`formatTimezoneOffsetHours`、`padPercent`。
 - `encodeMetrics(metrics, { includeTime: true, timezoneOffsetHours })` 会追加 `T/Z`。
 - `encodeMetrics(metrics)` 只输出 `C/M`。
 - 不采集系统指标。
@@ -277,19 +283,19 @@ main:
 
 ```bash
 cd sender
-npm install
-npm run list-ports
-npm start -- --port /dev/tty.usbserial-xxxx --interval 2000
-npm run list-ble
-npm start -- --transport ble --interval 2000
+pnpm install
+pnpm run list-ports
+pnpm start -- --port /dev/tty.usbserial-xxxx --interval 2000
+pnpm run list-ble
+pnpm start -- --transport ble --interval 2000
 ```
 
 如果执行 BLE 命令出现 `No native build was found ...`，用当前 Node 版本重新安装依赖：
 
 ```bash
 cd sender
-npm install
-npm run list-ble
+pnpm install
+pnpm run list-ble
 ```
 
 本项目在 `package.json` 的 `pnpm.onlyBuiltDependencies` 中允许了 BLE 和串口所需的原生依赖构建脚本，包括 `@abandonware/noble`、`@abandonware/bluetooth-hci-socket`、`@serialport/bindings-cpp` 和 `usb`。pnpm v10 若提示 ignored build scripts，通常需要重新执行 `pnpm install` 和 `pnpm rebuild`。

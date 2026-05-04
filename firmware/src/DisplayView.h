@@ -9,7 +9,10 @@ public:
   void drawBoot();
   void draw(const AppState& state);
   void setBrightnessByIndex(uint8_t index);
+  void sleepScreen();
+  void wakeScreen(uint8_t brightnessIndex);
   void setInverted(bool inverted);
+  bool isInverted() const;
 
 private:
   void applyRotation();
@@ -27,4 +30,5 @@ private:
   AppState lastDrawnState;
   bool hasLastDrawnState = false;
   bool screenInverted = false;
+  unsigned long lastMainDrawMs = 0;
 };

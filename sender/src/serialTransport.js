@@ -17,7 +17,7 @@ function selectPort(ports, preferredPath) {
 
     if (!matched) {
       throw new Error(
-        `Serial port not found: ${preferredPath}. Run "npm run list-ports" to see available ports.`,
+        `Serial port not found: ${preferredPath}. Run "pnpm run list-ports" to see available ports.`,
       );
     }
 
@@ -44,7 +44,7 @@ function selectPort(ports, preferredPath) {
   }
 
   throw new Error(
-    'Could not auto-select a serial port. Run "npm run list-ports" and specify --port <path>.',
+    'Could not auto-select a serial port. Run "pnpm run list-ports" and specify --port <path>.',
   );
 }
 
