@@ -8,12 +8,14 @@
 #include "FirmwareConfig.h"
 #include "Protocol.h"
 #include "SerialReceiver.h"
+#include "SettingsStore.h"
 
 namespace {
 AppState appState;
 SerialReceiver serialReceiver;
 BleReceiver bleReceiver;
 DisplayView displayView;
+SettingsStore settingsStore;
 bool imuAvailable = false;
 bool hasPendingOrientation = false;
 bool pendingOrientationInverted = false;
@@ -55,9 +57,13 @@ void setup() {
   setCpuFrequencyMhz(FirmwareConfig::CPU_FREQUENCY_MHZ);
   M5.begin();
   imuAvailable = M5.Imu.Init() == 0;
+  settingsStore.load(appState);
   serialReceiver.begin(FirmwareConfig::SERIAL_BAUD_RATE);
-  bleReceiver.begin();
+  if (appState.bleEnabled) {
+    bleReceiver.begin();
+  }
   displayView.begin();
+  displayView.setBrightnessByIndex(appState.brightnessIndex);
   displayView.drawBoot();
 }
 
@@ -395,7 +401,7 @@ void enterSettings() {
   }
 
   appState.settingsOpen = true;
-  appState.selectedSettingsOption = SETTINGS_OPTION_BRIGHTNESS;
+  appState.selectedSettingsOption = SETTINGS_OPTION_BATTERY;
   updateBatteryState(true);
 }
 
@@ -428,17 +434,20 @@ void cycleSettingsBrightness() {
   appState.brightnessIndex =
     (appState.brightnessIndex + 1) % FirmwareConfig::BRIGHTNESS_LEVEL_COUNT;
   displayView.setBrightnessByIndex(appState.brightnessIndex);
+  settingsStore.saveBrightnessIndex(appState.brightnessIndex);
 }
 
 void toggleBle() {
   appState.bleEnabled = !appState.bleEnabled;
   bleReceiver.setEnabled(appState.bleEnabled);
   updateBleDiagnostics();
+  settingsStore.saveBleEnabled(appState.bleEnabled);
 }
 
 void toggleAutoRotate() {
   appState.autoRotateEnabled = !appState.autoRotateEnabled;
   hasPendingOrientation = false;
+  settingsStore.saveAutoRotateEnabled(appState.autoRotateEnabled);
 }
 
 uint8_t estimateBatteryPercent(float voltage) {

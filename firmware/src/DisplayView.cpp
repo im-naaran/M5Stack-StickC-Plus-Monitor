@@ -56,7 +56,6 @@ void DisplayView::begin() {
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
   M5.Lcd.fillScreen(COLOR_BACKGROUND);
-  setBrightnessByIndex(FirmwareConfig::DEFAULT_BRIGHTNESS_INDEX);
 }
 
 void DisplayView::drawBoot() {

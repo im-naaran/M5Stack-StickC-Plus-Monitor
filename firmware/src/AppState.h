@@ -9,8 +9,8 @@ struct MetricsState {
 };
 
 enum SettingsOption {
-  SETTINGS_OPTION_BRIGHTNESS = 0,
-  SETTINGS_OPTION_BATTERY = 1,
+  SETTINGS_OPTION_BATTERY = 0,
+  SETTINGS_OPTION_BRIGHTNESS = 1,
   SETTINGS_OPTION_BLE = 2,
   SETTINGS_OPTION_ROTATE = 3,
   SETTINGS_OPTION_EXIT = 4,
@@ -35,7 +35,7 @@ struct AppState {
   uint8_t brightnessIndex = FirmwareConfig::DEFAULT_BRIGHTNESS_INDEX;
   bool screenSleeping = false;
   bool settingsOpen = false;
-  uint8_t selectedSettingsOption = SETTINGS_OPTION_BRIGHTNESS;
+  uint8_t selectedSettingsOption = SETTINGS_OPTION_BATTERY;
   bool batteryPercentKnown = false;
   uint8_t batteryPercent = 0;
   unsigned long lastBatteryRefreshMs = 0;

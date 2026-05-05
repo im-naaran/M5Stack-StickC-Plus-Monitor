@@ -117,16 +117,18 @@ pnpm run start -- --transport ble --interval 2000 --verbose
 
 | 设置项 | 取值 | 说明 |
 | --- | --- | --- |
-| `brightness` | `1/5` 到 `5/5` | 屏幕亮度，依次对应 `20, 40, 60, 80, 100` |
 | `battery` | 百分比或 `--` | 当前电池电量估算值，只读 |
+| `brightness` | `1/5` 到 `5/5` | 屏幕亮度，依次对应 `20, 40, 60, 80, 100`，默认第 3 档 |
 | `ble` | `on/off` | BLE 开关，默认 `on` |
 | `rotate` | `on/off` | 自动旋转开关，默认 `on` |
 | `exit` | - | 短按 A 退出设置页 |
 
 说明：
 
+- 设置页顺序为 `battery`、`brightness`、`ble`、`rotate`、`exit`。
+- `brightness`、`ble` 和 `rotate` 会保存到 ESP32 NVS，重启和普通固件上传后仍会保留。
 - `battery` 是按电池电压估算的百分比，短时间跳动不一定代表真实容量快速下降。
-- `ble off` 后无法通过 BLE 连接设备，但 USB Serial 仍可使用；需要在设置页重新打开 BLE 才能用 BLE。
+- `ble off` 后固件不会初始化 BLE，无法通过 BLE 连接设备，但 USB Serial 仍可使用；需要在设置页重新打开 BLE 才能用 BLE。
 - `rotate off` 后不会继续采样 IMU，屏幕保持当前方向。
 
 ## 串口协议
@@ -173,6 +175,16 @@ BLE 不走系统级蓝牙配对。电脑端按 Service UUID 扫描并连接。
 ### 串口上传失败
 
 确认 Node Sender、串口监视器或其他占用串口的程序已经停止，然后重新执行上传命令。
+
+### 恢复默认设备设置
+
+`brightness`、`ble` 和 `rotate` 保存在 ESP32 NVS 中，普通 `pio run -t upload` 不会自动清除。开发时如需彻底清除设备端保存设置，可以执行：
+
+```bash
+cd firmware
+pio run -t erase
+pio run -t upload
+```
 
 ### BLE 找不到设备
 
