@@ -1,0 +1,11 @@
+[project]
+name = "sender-py"
+version = "0.1.0"
+description = "Python sender for M5StickC Plus PC monitor metrics."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "bleak>=1.0.1",
+    "psutil>=7.0.0",
+    "pyserial>=3.5",
+]
