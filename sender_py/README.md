@@ -91,6 +91,8 @@ uv run python main.py --transport ble --ble-id D3CDE304-9ACF-FE45-A0EF-0615A8433
 | `--ble-discovery-retry-delay <ms>` | BLE GATT discovery 重试间隔 | `500` |
 | `--verbose` | 输出每次写入的协议文本 | 关闭 |
 
+默认配置集中在 `config.py`，`main.py` 只负责运行时参数合并、校验和发送逻辑。
+
 ## 示例
 
 USB Serial 调试：

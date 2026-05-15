@@ -15,45 +15,19 @@ import psutil
 import serial
 from serial.tools import list_ports
 
+from config import (
+    BLE_DEFAULT_DEVICE_NAME,
+    BLE_METRICS_CHARACTERISTIC_UUID,
+    BLE_SERVICE_UUID,
+    Config,
+)
+
 if TYPE_CHECKING:
     from bleak import BleakClient
     from bleak.backends.device import BLEDevice
 
-
-BLE_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
-BLE_METRICS_CHARACTERISTIC_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
-BLE_DEFAULT_DEVICE_NAME = "M5Monitor-Plus"
 PERCENT_MIN = 0
 PERCENT_MAX = 100
-
-
-@dataclass(frozen=True)
-class Config:
-    port: str = ""
-    baud_rate: int = 115200
-    transport: str = "serial"
-    interval_ms: int = 2000
-    min_interval_ms: int = 500
-    timezone_offset_hours: int = 8
-    min_timezone_offset_hours: int = -12
-    max_timezone_offset_hours: int = 14
-    auto_select_port: bool = True
-    ble_name: str = ""
-    ble_id: str = ""
-    ble_default_device_name: str = BLE_DEFAULT_DEVICE_NAME
-    ble_service_uuid: str = BLE_SERVICE_UUID
-    ble_metrics_characteristic_uuid: str = BLE_METRICS_CHARACTERISTIC_UUID
-    ble_scan_timeout_ms: int = 8000
-    min_ble_scan_timeout_ms: int = 1000
-    ble_connect_delay_ms: int = 1000
-    min_ble_connect_delay_ms: int = 0
-    ble_discovery_timeout_ms: int = 5000
-    min_ble_discovery_timeout_ms: int = 1000
-    ble_discovery_retries: int = 3
-    min_ble_discovery_retries: int = 1
-    ble_discovery_retry_delay_ms: int = 500
-    min_ble_discovery_retry_delay_ms: int = 0
-    verbose: bool = False
 
 
 @dataclass(frozen=True)
