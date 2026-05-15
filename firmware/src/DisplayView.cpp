@@ -154,7 +154,10 @@ void DisplayView::drawDisconnected(const AppState& state) {
       lastDrawnState.bleWriteCount == state.bleWriteCount &&
       lastDrawnState.bleLineCount == state.bleLineCount &&
       lastDrawnState.bleEnabled == state.bleEnabled &&
-      lastDrawnState.brightnessIndex == state.brightnessIndex) {
+      lastDrawnState.brightnessIndex == state.brightnessIndex &&
+      lastDrawnState.batteryPercentKnown == state.batteryPercentKnown &&
+      lastDrawnState.batteryPercent == state.batteryPercent &&
+      lastDrawnState.externalPowerPresent == state.externalPowerPresent) {
     return;
   }
 
@@ -256,19 +259,28 @@ void DisplayView::drawProgressBar(int x, int y, int w, int h, int percent, uint1
 void DisplayView::drawFooter(const AppState& state) {
   M5.Lcd.fillRect(0, 108, 240, 27, COLOR_BACKGROUND);
   M5.Lcd.setTextDatum(TL_DATUM);
-  M5.Lcd.setTextSize(1);
 
-  if (state.connected) {
-    M5.Lcd.setTextColor(COLOR_GREEN, COLOR_BACKGROUND);
-    M5.Lcd.drawString("PC Connected", 12, 116);
-  } else {
-    M5.Lcd.setTextColor(COLOR_RED, COLOR_BACKGROUND);
-    M5.Lcd.drawString("PC Disconnected", 12, 116);
+  String batteryText = state.batteryPercentKnown ?
+    String(state.batteryPercent) + "%" :
+    "--%";
+  uint16_t batteryColor = colorForBatteryPercent(state);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setTextColor(batteryColor, COLOR_BACKGROUND);
+  M5.Lcd.drawString(batteryText, 12, 112);
+
+  if (state.externalPowerPresent) {
+    int iconX = 12 + static_cast<int>(batteryText.length()) * 12 + 6;
+    drawExternalPowerIcon(iconX, 112, COLOR_GREEN);
   }
 
   M5.Lcd.setTextColor(COLOR_MUTED, COLOR_BACKGROUND);
   M5.Lcd.setTextSize(2);
   M5.Lcd.drawRightString(state.timeText, 228, 112, 1);
+}
+
+void DisplayView::drawExternalPowerIcon(int x, int y, uint16_t color) {
+  M5.Lcd.fillTriangle(x + 7, y, x + 2, y + 9, x + 7, y + 9, color);
+  M5.Lcd.fillTriangle(x + 7, y + 8, x + 12, y + 8, x + 7, y + 17, color);
 }
 
 void DisplayView::drawSettingRow(int y, bool selected, const char* label, const String& value) {
@@ -297,6 +309,22 @@ uint16_t DisplayView::colorForPercent(int percent) {
   return COLOR_GREEN;
 }
 
+uint16_t DisplayView::colorForBatteryPercent(const AppState& state) {
+  if (!state.batteryPercentKnown) {
+    return COLOR_MUTED;
+  }
+
+  if (state.batteryPercent < 20) {
+    return COLOR_RED;
+  }
+
+  if (state.batteryPercent < 50) {
+    return COLOR_YELLOW;
+  }
+
+  return COLOR_GREEN;
+}
+
 bool DisplayView::stateChanged(const AppState& state) const {
   if (!hasLastDrawnState) {
     return true;
@@ -306,7 +334,10 @@ bool DisplayView::stateChanged(const AppState& state) const {
          lastDrawnState.metrics.cpuPercent != state.metrics.cpuPercent ||
          lastDrawnState.metrics.memoryPercent != state.metrics.memoryPercent ||
          lastDrawnState.timeText != state.timeText ||
-         lastDrawnState.settingsOpen != state.settingsOpen;
+         lastDrawnState.settingsOpen != state.settingsOpen ||
+         lastDrawnState.batteryPercentKnown != state.batteryPercentKnown ||
+         lastDrawnState.batteryPercent != state.batteryPercent ||
+         lastDrawnState.externalPowerPresent != state.externalPowerPresent;
 }
 
 bool DisplayView::settingsStateChanged(const AppState& state) const {
@@ -320,5 +351,6 @@ bool DisplayView::settingsStateChanged(const AppState& state) const {
          lastDrawnState.bleEnabled != state.bleEnabled ||
          lastDrawnState.autoRotateEnabled != state.autoRotateEnabled ||
          lastDrawnState.batteryPercentKnown != state.batteryPercentKnown ||
-         lastDrawnState.batteryPercent != state.batteryPercent;
+         lastDrawnState.batteryPercent != state.batteryPercent ||
+         lastDrawnState.externalPowerPresent != state.externalPowerPresent;
 }

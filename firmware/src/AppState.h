@@ -38,5 +38,7 @@ struct AppState {
   uint8_t selectedSettingsOption = SETTINGS_OPTION_BATTERY;
   bool batteryPercentKnown = false;
   uint8_t batteryPercent = 0;
+  bool externalPowerPresent = false;
   unsigned long lastBatteryRefreshMs = 0;
+  unsigned long lastExternalPowerRefreshMs = 0;
 };

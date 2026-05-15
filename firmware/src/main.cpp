@@ -37,6 +37,7 @@ void updateScreenPower();
 void sleepScreen();
 void wakeScreen();
 unsigned long loopDelayMs();
+void updateExternalPowerState(bool force);
 void updateBatteryState(bool force);
 void applyMetrics(const ParseResult& result);
 void updateDisplayOrientation();
@@ -73,6 +74,7 @@ void loop() {
   handleBleInput();
   updateBleDiagnostics();
   refreshClockText(false);
+  updateExternalPowerState(false);
   updateBatteryState(false);
   handleConnectionTimeout();
   handleButtons();
@@ -241,6 +243,23 @@ void updateBatteryState(bool force) {
   appState.batteryPercentKnown = true;
 }
 
+void updateExternalPowerState(bool force) {
+  unsigned long now = millis();
+  if (!force &&
+      appState.lastExternalPowerRefreshMs != 0 &&
+      now - appState.lastExternalPowerRefreshMs <
+        FirmwareConfig::EXTERNAL_POWER_REFRESH_INTERVAL_MS) {
+    return;
+  }
+
+  float vbusVoltage = M5.Axp.GetVBusVoltage();
+  float vinVoltage = M5.Axp.GetVinVoltage();
+  appState.lastExternalPowerRefreshMs = now;
+  appState.externalPowerPresent =
+    vbusVoltage >= FirmwareConfig::EXTERNAL_POWER_PRESENT_VOLTAGE ||
+    vinVoltage >= FirmwareConfig::EXTERNAL_POWER_PRESENT_VOLTAGE;
+}
+
 void applyMetrics(const ParseResult& result) {
   if (result.hasCpu) {
     appState.metrics.cpuPercent = result.metrics.cpuPercent;
@@ -402,6 +421,7 @@ void enterSettings() {
 
   appState.settingsOpen = true;
   appState.selectedSettingsOption = SETTINGS_OPTION_BATTERY;
+  updateExternalPowerState(true);
   updateBatteryState(true);
 }
 
@@ -451,16 +471,40 @@ void toggleAutoRotate() {
 }
 
 uint8_t estimateBatteryPercent(float voltage) {
-  float ratio =
-    (voltage - FirmwareConfig::BATTERY_EMPTY_VOLTAGE) /
-    (FirmwareConfig::BATTERY_FULL_VOLTAGE - FirmwareConfig::BATTERY_EMPTY_VOLTAGE);
+  struct BatteryCurvePoint {
+    float voltage;
+    uint8_t percent;
+  };
 
-  if (ratio < 0.0f) {
-    ratio = 0.0f;
-  } else if (ratio > 1.0f) {
-    ratio = 1.0f;
+  static const BatteryCurvePoint curve[] = {
+    { 3.30f, 0 },
+    { 3.50f, 5 },
+    { 3.60f, 15 },
+    { 3.70f, 30 },
+    { 3.80f, 45 },
+    { 3.90f, 60 },
+    { 4.00f, 75 },
+    { 4.10f, 90 },
+    { 4.20f, 100 },
+  };
+  static const size_t curvePointCount = sizeof(curve) / sizeof(curve[0]);
+
+  if (voltage <= curve[0].voltage) {
+    return curve[0].percent;
   }
 
-  return static_cast<uint8_t>(roundf(ratio * 100.0f));
+  for (size_t i = 1; i < curvePointCount; ++i) {
+    if (voltage <= curve[i].voltage) {
+      float ratio =
+        (voltage - curve[i - 1].voltage) /
+        (curve[i].voltage - curve[i - 1].voltage);
+      float percent =
+        curve[i - 1].percent +
+        ratio * (curve[i].percent - curve[i - 1].percent);
+      return static_cast<uint8_t>(roundf(percent));
+    }
+  }
+
+  return curve[curvePointCount - 1].percent;
 }
 }
