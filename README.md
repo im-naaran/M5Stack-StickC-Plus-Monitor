@@ -17,20 +17,19 @@
 
 ```text
 firmware/   M5StickC Plus 固件，PlatformIO + Arduino C++
-sender/     电脑端 Node.js 服务，采集指标并写入 USB Serial 或 BLE
-docs/       固件、发送端和协议的开发说明
+sender/     电脑端 Python 服务，采集指标并写入 USB Serial 或 BLE
 ```
 
 详细说明：
 
-- [ESP32 Firmware](docs/ESP32_FIRMWARE.md)
-- [Node Sender](docs/NODE_SENDER.md)
+- [ESP32 Firmware](firmware/README.md)
+- [Python Sender](sender/README.md)
 
 ## 快速开始
 
 ### 1. 刷写固件
 
-先停止 Node Sender 或其他串口监视器，避免串口被占用。
+先停止 sender 或其他串口监视器，避免串口被占用。
 
 ```bash
 cd firmware
@@ -48,23 +47,23 @@ pio run -t upload --upload-port /dev/tty.usbserial-xxxx
 
 ```bash
 cd sender
-pnpm install
-pnpm run list-ports
+uv sync
+uv run python main.py --list-ports
 ```
 
 ### 2. 启动 USB 发送端
 
 ```bash
 cd sender
-pnpm install
-pnpm run start -- --port /dev/tty.usbserial-xxxx --interval 2000
+uv sync
+uv run python main.py
 ```
 
-如果只连接了一台疑似 M5StickC Plus 设备，可以省略 `--port`，发送端会尝试自动选择：
+如果自动选择失败，先列出串口，再指定端口：
 
 ```bash
-cd sender
-pnpm run start -- --interval 2000
+uv run python main.py --list-ports
+uv run python main.py --port /dev/tty.usbserial-xxxx
 ```
 
 ### 3. 启动 BLE 发送端
@@ -73,29 +72,22 @@ pnpm run start -- --interval 2000
 
 ```bash
 cd sender
-pnpm install
-pnpm run list-ble
-pnpm run start -- --transport ble --interval 2000
+uv sync
+uv run python main.py --transport ble
 ```
 
-多台设备同时存在时指定设备名：
+多台设备同时存在时，先列出设备，再指定设备名或 ID：
 
 ```bash
-pnpm run start -- --transport ble --ble-name M5Monitor-Plus --interval 2000
+uv run python main.py --list-ble
+uv run python main.py --transport ble --ble-name M5Monitor-Plus
 ```
 
-如果 GATT discovery 不稳定，可增加连接后的等待时间：
+更多 sender 参数见 [sender/README.md](sender/README.md)。
 
-```bash
-pnpm run start -- --transport ble --ble-connect-delay 2000 --interval 2000
-```
+### 4. 开机运行
 
-### 4. 调试协议输出
-
-```bash
-pnpm run start -- --port /dev/tty.usbserial-xxxx --interval 2000 --verbose
-pnpm run start -- --transport ble --interval 2000 --verbose
-```
+固件显示 `Waiting for PC` 后，启动 sender 即可显示 CPU、RAM、本地时间和连接状态。USB Serial 和 BLE 使用同一套协议，任选其一运行即可。
 
 ## 设备操作
 
@@ -131,50 +123,18 @@ pnpm run start -- --transport ble --interval 2000 --verbose
 - `ble off` 后固件不会初始化 BLE，无法通过 BLE 连接设备，但 USB Serial 仍可使用；需要在设置页重新打开 BLE 才能用 BLE。
 - `rotate off` 后不会继续采样 IMU，屏幕保持当前方向。
 
-## 串口协议
+## 实现说明
 
-USB Serial 和 BLE 共用同一套文本协议。每条消息是一行，以 `\n` 结尾。
+USB Serial 和 BLE 使用同一套数据格式，BLE 不走系统级蓝牙配对。协议、BLE GATT、模块职责和配置参数的细节见：
 
-启动时发送带时间同步信息的文本：
-
-```text
-C:025|M:060|T:1714440000|Z:+8\n
-```
-
-后续指标包可以只发送变化字段：
-
-```text
-C:025|M:060\n
-```
-
-字段：
-
-| 字段 | 含义 | 示例 |
-| --- | --- | --- |
-| `C` | CPU 使用率，`0-100` | `C:025` |
-| `M` | 内存使用率，`0-100` | `M:060` |
-| `T` | 秒级 Unix 时间戳 | `T:1714440000` |
-| `Z` | 时区偏移，单位小时 | `Z:+8` |
-
-ESP32 接收端按字段增量更新：字段存在就读取，不存在就保持当前状态。
-
-## BLE GATT
-
-| 项 | 值 |
-| --- | --- |
-| Device Name | `M5Monitor-Plus` |
-| Service UUID | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` |
-| Metrics Characteristic UUID | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` |
-| Characteristic Properties | `Write`, `Write Without Response` |
-| Payload | UTF-8 协议文本，例如 `C:025|M:060\n` |
-
-BLE 不走系统级蓝牙配对。电脑端按 Service UUID 扫描并连接。
+- [firmware/README.md](firmware/README.md)
+- [sender/README.md](sender/README.md)
 
 ## 常见问题
 
 ### 串口上传失败
 
-确认 Node Sender、串口监视器或其他占用串口的程序已经停止，然后重新执行上传命令。
+确认 sender、串口监视器或其他占用串口的程序已经停止，然后重新执行上传命令。
 
 ### 恢复默认设备设置
 
@@ -192,18 +152,12 @@ pio run -t upload
 
 ```bash
 cd sender
-pnpm run list-ble
+uv run python main.py --list-ble
 ```
 
-### BLE 原生依赖报错
+### macOS BLE 权限
 
-BLE 使用 Node 依赖 `@abandonware/noble`。如果看到 `No native build was found ...`，用当前 Node 版本重新安装依赖：
-
-```bash
-cd sender
-pnpm install
-pnpm run list-ble
-```
+macOS 使用 BLE 时，需要给运行命令的程序开启蓝牙权限，例如 Terminal、iTerm、VS Code 或 wrap.app。
 
 ### 电量显示下降很快
 

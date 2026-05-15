@@ -190,7 +190,7 @@ def validate_config(config: Config) -> Config:
     if transport == "ble" and is_unsupported_macos_ble_runtime():
         errors.append(
             "BLE on macOS is unstable with Python 3.14/CoreBluetooth. "
-            "Use Python 3.12 or 3.13 for sender_py."
+            "Use Python 3.12 or 3.13 for sender."
         )
 
     if (
@@ -780,7 +780,7 @@ async def run_sender(config: Config, logger: Logger) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="m5-monitor-sender-py",
+        prog="m5-monitor-sender",
         description="Send PC CPU and memory metrics to M5StickC Plus over USB serial or BLE.",
     )
     parser.add_argument("--transport", choices=["serial", "ble"], help="transport type")

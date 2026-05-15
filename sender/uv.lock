@@ -129,7 +129,7 @@ wheels = [
 ]
 
 [[package]]
-name = "sender-py"
+name = "sender"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
